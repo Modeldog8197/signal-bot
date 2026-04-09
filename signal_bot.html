@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIFTY50 Signal Bot</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efeb;
+    --border: rgba(44,44,42,0.12);
+    --border2: rgba(44,44,42,0.22);
+    --text: #2c2c2a;
+    --text2: #888780;
+    --text3: #b4b2a9;
+    --green: #3b6d11;
+    --green-bg: #eaf3de;
+    --red: #a32d2d;
+    --red-bg: #fcebeb;
+    --amber: #ba7517;
+    --blue: #185fa5;
+    --blue-bg: #e6f1fb;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --surface: #242422;
+      --surface2: #2c2c2a;
+      --border: rgba(212,209,199,0.1);
+      --border2: rgba(212,209,199,0.2);
+      --text: #d3d1c7;
+      --text2: #888780;
+      --text3: #5f5e5a;
+      --green: #97c459;
+      --green-bg: #173404;
+      --red: #f09595;
+      --red-bg: #501313;
+      --amber: #ef9f27;
+      --blue: #85b7eb;
+      --blue-bg: #042c53;
+    }
+  }
+
+  body {
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .app {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0 16px;
+    border-bottom: 0.5px solid var(--border2);
+    margin-bottom: 0;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .header-left { display: flex; align-items: baseline; gap: 10px; }
+  .logo { font-size: 20px; font-weight: 500; letter-spacing: -0.5px; }
+  .version { font-size: 11px; color: var(--text2); }
+
+  .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .signal-status { font-size: 11px; color: var(--text2); }
+  .signal-status.has-buys { color: var(--green); }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn:hover { background: var(--surface2); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-sm { font-size: 11px; padding: 4px 10px; }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 22px;
+  }
+
+  .tab {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 18px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+    font-weight: 500;
+  }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .metric-card {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .metric-label { font-size: 10px; color: var(--text2); margin-bottom: 5px; text-transform: lowercase; }
+  .metric-value { font-size: 22px; font-weight: 500; }
+  .metric-value.up { color: var(--green); }
+  .metric-value.down { color: var(--red); }
+
+  .chart-wrap {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .chart-label { font-size: 11px; color: var(--text2); margin-bottom: 10px; }
+
+  canvas { display: block; width: 100%; }
+
+  .signals-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 600px) { .signals-grid { grid-template-columns: 1fr; } }
+
+  .signal-box {
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+  .signal-box-title { font-size: 12px; font-weight: 500; margin-bottom: 10px; }
+  .signal-box-title.buy { color: var(--green); }
+  .signal-box-title.sell { color: var(--red); }
+
+  .signal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 0.5px solid var(--border);
+    cursor: pointer;
+    transition: opacity 0.1s;
+  }
+  .signal-row:last-child { border-bottom: none; }
+  .signal-row:hover { opacity: 0.7; }
+  .signal-row-name { font-size: 12px; font-weight: 500; }
+  .signal-row-meta { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .signal-row-right { text-align: right; }
+  .signal-row-price { font-size: 12px; }
+  .signal-row-chg { font-size: 11px; }
+  .chg-up { color: var(--green); }
+  .chg-dn { color: var(--red); }
+  .no-signals { font-size: 12px; color: var(--text3); }
+
+  .ticker-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .ticker-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 0.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    transition: background 0.12s;
+    white-space: nowrap;
+  }
+  .ticker-pill.active { background: var(--text); color: var(--bg); }
+  .ticker-pill.has-buy { border-color: var(--green); outline: 1px solid var(--green); }
+  .ticker-pill.has-sell { border-color: var(--red); outline: 1px solid var(--red); }
+  .ticker-pill .sig-arrow { margin-left: 3px; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat-cell {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat-cell-label { font-size: 10px; color: var(--text2); margin-bottom: 3px; }
+  .stat-cell-value { font-size: 15px; font-weight: 500; }
+
+  .signal-chart-label { font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 6px 10px; font-weight: 500; color: var(--text2); border-bottom: 0.5px solid var(--border2); white-space: nowrap; }
+  td { padding: 6px 10px; border-bottom: 0.5px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { opacity: 0.7; }
+  .ret-up { color: var(--green); font-weight: 500; }
+  .ret-dn { color: var(--red); font-weight: 500; }
+  .td-muted { color: var(--text3); font-size: 11px; }
+
+  .table-wrap { overflow-x: auto; }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 8px;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .config-section { max-width: 500px; }
+  .param-row { margin-bottom: 20px; }
+  .param-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .param-label { font-size: 12px; color: var(--text2); }
+  .param-val { font-size: 13px; font-weight: 500; }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--text);
+    cursor: pointer;
+  }
+  .param-minmax { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+  .logic-box {
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.8;
+  }
+  .logic-box strong { font-weight: 500; color: var(--text); }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text2);
+    padding: 40px 0;
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Backend / persistence UI ── */
+  .offline-badge {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--amber);
+    background: rgba(186,117,23,0.10);
+    border: 0.5px solid rgba(186,117,23,0.35);
+    border-radius: 5px;
+    padding: 3px 8px;
+  }
+  .offline-badge.visible { display: flex; }
+
+  .save-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .save-row input[type=text] {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 9px;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    color: var(--text);
+    border-radius: 6px;
+    width: 220px;
+    outline: none;
+  }
+  .save-row input[type=text]:focus { border-color: var(--blue); }
+
+  .saved-list { margin-top: 10px; }
+  .saved-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 0.5px solid var(--border);
+    border-radius: 7px;
+    margin-bottom: 6px;
+    background: var(--surface);
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .saved-item-meta { flex:1; min-width:0; }
+  .saved-item-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .saved-item-date { font-size: 10px; color: var(--text2); margin-top: 2px; }
+  .saved-item-actions { display: flex; gap: 6px; }
+
+  .section-divider {
+    height: 0.5px;
+    background: var(--border);
+    margin: 22px 0;
+  }
+  .section-title {
+    font-size: 11px;
+    color: var(--text2);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    margin-bottom: 12px;
+  }
+
+  .history-metrics {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+  .history-metrics span { margin-right: 8px; }
+  .history-ret-up { color: var(--green); }
+  .history-ret-dn { color: var(--red); }
+
+  .empty-state {
+    font-size: 12px;
+    color: var(--text3);
+    padding: 16px 0;
+  }
+
+  .inline-prompt {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .inline-prompt.visible { display: flex; }
+  .inline-prompt input[type=text] {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 9px;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    color: var(--text);
+    border-radius: 6px;
+    width: 200px;
+    outline: none;
+  }
+  .inline-prompt input[type=text]:focus { border-color: var(--blue); }
+
+  .backend-hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">NIFTY50</span>
+      <span class="version">signal_bot v2.4</span>
+    </div>
+    <div class="header-right">
+      <span class="signal-status" id="signal-status">computing…</span>
+      <span class="offline-badge" id="offline-badge">⚠ backend offline</span>
+      <button class="btn" id="rerun-btn" onclick="recompute()">↻ rerun</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard', this)">dashboard</button>
+    <button class="tab" onclick="switchTab('signals', this)">signals</button>
+    <button class="tab" onclick="switchTab('backtest', this)">backtest</button>
+    <button class="tab" onclick="switchTab('config', this)">config</button>
+    <button class="tab" onclick="switchTab('history', this)">history</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="metrics-grid" id="metrics-grid"></div>
+    <div class="chart-wrap">
+      <div class="chart-label">equity curve — ₹1,00,000 initial capital</div>
+      <canvas id="equity-canvas" height="200"></canvas>
+    </div>
+    <div class="save-row backend-ui" style="margin-bottom:10px">
+      <button class="btn btn-sm" id="save-bt-btn" onclick="toggleSaveBtPrompt()">💾 save backtest</button>
+      <div class="inline-prompt" id="save-bt-prompt">
+        <input type="text" id="save-bt-name" placeholder="backtest name…" onkeydown="if(event.key==='Enter')doSaveBacktest()">
+        <button class="btn btn-sm" onclick="doSaveBacktest()">save</button>
+        <button class="btn btn-sm" onclick="toggleSaveBtPrompt(false)">cancel</button>
+      </div>
+    </div>
+    <div class="signals-grid">
+      <div class="signal-box">
+        <div class="signal-box-title buy" id="buy-title">buy signals (0)</div>
+        <div id="buy-list"><span class="no-signals">no signals on latest bar</span></div>
+      </div>
+      <div class="signal-box">
+        <div class="signal-box-title sell" id="sell-title">sell signals (0)</div>
+        <div id="sell-list"><span class="no-signals">no signals on latest bar</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNALS -->
+  <div class="panel" id="panel-signals">
+    <div class="ticker-pills" id="ticker-pills"></div>
+    <div id="signal-detail"></div>
+  </div>
+
+  <!-- BACKTEST -->
+  <div class="panel" id="panel-backtest">
+    <div class="filter-row">
+      <span style="font-size:12px;color:var(--text2)">filter:</span>
+      <select id="trade-filter" onchange="renderTradeTable()">
+        <option value="ALL">ALL TICKERS</option>
+      </select>
+      <span style="font-size:12px;color:var(--text2);margin-left:auto" id="trade-count"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="trade-table">
+        <thead>
+          <tr>
+            <th>#</th><th>ticker</th><th>entry date</th><th>exit date</th>
+            <th>entry ₹</th><th>exit ₹</th><th>return %</th><th>note</th>
+          </tr>
+        </thead>
+        <tbody id="trade-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="panel" id="panel-config">
+    <div class="config-section">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:18px">adjust parameters and rerun the backtest</p>
+      <div id="param-sliders"></div>
+      <button class="btn" id="config-rerun" onclick="recompute()">↻ rerun with new params</button>
+      <div class="logic-box" id="logic-box"></div>
+
+      <!-- Saved Configs -->
+      <div class="section-divider backend-ui"></div>
+      <div class="backend-ui">
+        <div class="section-title">saved configs</div>
+        <div class="save-row">
+          <input type="text" id="config-save-name" placeholder="config name…" onkeydown="if(event.key==='Enter')doSaveConfig()">
+          <button class="btn btn-sm" onclick="doSaveConfig()">save current config</button>
+        </div>
+        <div class="saved-list" id="saved-configs-list">
+          <span class="empty-state">no saved configs yet</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="panel" id="panel-history">
+    <div class="section-title">backtest history</div>
+    <div id="history-list"><span class="empty-state">loading…</span></div>
+  </div>
+</div>
+
+<script>
+/* ── Backend config ── */
+const BASE_URL = 'http://localhost:8000';
+let backendOnline = false;
+
+/* ── Backend health check ── */
+async function checkBackend() {
+  try {
+    const r = await fetch(`${BASE_URL}/configs`, { signal: AbortSignal.timeout(2000) });
+    backendOnline = r.ok;
+  } catch {
+    backendOnline = false;
+  }
+  const badge = document.getElementById('offline-badge');
+  if (backendOnline) {
+    badge.classList.remove('visible');
+    document.querySelectorAll('.backend-ui').forEach(el => el.classList.remove('backend-hidden'));
+  } else {
+    badge.classList.add('visible');
+    document.querySelectorAll('.backend-ui').forEach(el => el.classList.add('backend-hidden'));
+  }
+}
+
+/* ── Config persistence ── */
+async function doSaveConfig() {
+  if (!backendOnline) return;
+  const nameEl = document.getElementById('config-save-name');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  try {
+    const r = await fetch(`${BASE_URL}/configs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, params: { ...PARAMS } }),
+    });
+    if (r.ok) { nameEl.value = ''; loadSavedConfigs(); }
+  } catch { }
+}
+
+async function loadSavedConfigs() {
+  if (!backendOnline) return;
+  const el = document.getElementById('saved-configs-list');
+  try {
+    const r = await fetch(`${BASE_URL}/configs`);
+    const list = await r.json();
+    if (!list.length) { el.innerHTML = '<span class="empty-state">no saved configs yet</span>'; return; }
+    el.innerHTML = list.map(c => `
+      <div class="saved-item">
+        <div class="saved-item-meta">
+          <div class="saved-item-name">${esc(c.name)}</div>
+          <div class="saved-item-date">${fmtDate(c.created_at)}</div>
+        </div>
+        <div class="saved-item-actions">
+          <button class="btn btn-sm" onclick="loadConfig(${c.id})">load</button>
+          <button class="btn btn-sm" onclick="deleteConfig(${c.id})">delete</button>
+        </div>
+      </div>`).join('');
+  } catch { el.innerHTML = '<span class="empty-state">could not load configs</span>'; }
+}
+
+async function loadConfig(id) {
+  try {
+    const r = await fetch(`${BASE_URL}/configs`);
+    const list = await r.json();
+    const cfg = list.find(c => c.id === id);
+    if (!cfg) return;
+    Object.assign(PARAMS, cfg.params);
+    renderConfig();
+  } catch { }
+}
+
+async function deleteConfig(id) {
+  try {
+    await fetch(`${BASE_URL}/configs/${id}`, { method: 'DELETE' });
+    loadSavedConfigs();
+  } catch { }
+}
+
+/* ── Backtest persistence ── */
+function toggleSaveBtPrompt(force) {
+  const p = document.getElementById('save-bt-prompt');
+  const show = force !== undefined ? force : !p.classList.contains('visible');
+  p.classList.toggle('visible', show);
+  if (show) setTimeout(() => document.getElementById('save-bt-name').focus(), 50);
+}
+
+async function doSaveBacktest() {
+  if (!backendOnline || !backtest) return;
+  const nameEl = document.getElementById('save-bt-name');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  const m = computeMetrics(backtest);
+  if (!m) return;
+  const metrics = {
+    ret: parseFloat(m.ret),
+    sharpe: parseFloat(m.sharpe),
+    maxDD: parseFloat(m.maxDD),
+    winRate: parseFloat(m.winRate),
+    numTrades: m.numTrades,
+    finalEquity: Math.round(m.end),
+  };
+  const trades = backtest.trades.map(t => ({
+    ticker: t.ticker,
+    entryDate: t.entryDate.toISOString(),
+    exitDate: t.exitDate.toISOString(),
+    entryPrice: t.entryPrice,
+    exitPrice: t.exitPrice,
+    returnPct: t.returnPct,
+    note: t.note || '',
+  }));
+  try {
+    const r = await fetch(`${BASE_URL}/backtests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, config_id: null, metrics, trades }),
+    });
+    if (r.ok) {
+      nameEl.value = '';
+      toggleSaveBtPrompt(false);
+    }
+  } catch { }
+}
+
+/* ── Backtest history ── */
+async function loadHistory() {
+  if (!backendOnline) {
+    document.getElementById('history-list').innerHTML = '<span class="empty-state">backend offline — history unavailable</span>';
+    return;
+  }
+  const el = document.getElementById('history-list');
+  el.innerHTML = '<span class="empty-state">loading…</span>';
+  try {
+    const r = await fetch(`${BASE_URL}/backtests`);
+    const list = await r.json();
+    if (!list.length) { el.innerHTML = '<span class="empty-state">no saved backtests yet</span>'; return; }
+    el.innerHTML = list.map(b => {
+      const ret = b.metrics?.ret ?? 0;
+      const retCls = ret >= 0 ? 'history-ret-up' : 'history-ret-dn';
+      return `
+        <div class="saved-item">
+          <div class="saved-item-meta">
+            <div class="saved-item-name">${esc(b.name)}</div>
+            <div class="history-metrics">
+              <span class="${retCls}">${ret >= 0 ? '+' : ''}${ret.toFixed(2)}%</span>
+              <span>sharpe ${(b.metrics?.sharpe ?? 0).toFixed(2)}</span>
+              <span>${b.metrics?.numTrades ?? 0} trades</span>
+            </div>
+            <div class="saved-item-date">${fmtDate(b.created_at)}</div>
+          </div>
+          <div class="saved-item-actions">
+            <button class="btn btn-sm" onclick="loadHistoryBacktest(${b.id})">load</button>
+            <button class="btn btn-sm" onclick="deleteHistoryBacktest(${b.id})">delete</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch { el.innerHTML = '<span class="empty-state">could not load history</span>'; }
+}
+
+async function loadHistoryBacktest(id) {
+  try {
+    const r = await fetch(`${BASE_URL}/backtests/${id}`);
+    const data = await r.json();
+    // Reconstruct backtest object with Date objects
+    const trades = (data.trades || []).map(t => ({
+      ...t,
+      entryDate: new Date(t.entryDate),
+      exitDate: new Date(t.exitDate),
+    }));
+    // Build equity from trades if needed — use metrics to show summary
+    const m = data.metrics;
+    // Switch to dashboard and show loaded metrics directly
+    const tabEl = document.querySelector('.tab:nth-child(1)');
+    switchTab('dashboard', tabEl);
+    // Inject metrics into grid
+    const grid = document.getElementById('metrics-grid');
+    const items = [
+      { label:"total return",  value:`${m.ret >= 0 ? '+' : ''}${m.ret.toFixed(2)}%`,      cls: m.ret >= 0 ? 'up' : 'down' },
+      { label:"sharpe ratio",  value: m.sharpe.toFixed(2),                                  cls: m.sharpe > 1 ? 'up' : '' },
+      { label:"max drawdown",  value:`${m.maxDD.toFixed(2)}%`,                              cls:'down' },
+      { label:"win rate",      value:`${m.winRate.toFixed(1)}%`,                            cls: m.winRate > 50 ? 'up' : '' },
+      { label:"trades",        value: m.numTrades,                                          cls:'' },
+      { label:"final equity",  value:`₹${Math.round(m.finalEquity).toLocaleString('en-IN')}`, cls:'' },
+    ];
+    grid.innerHTML = items.map(({label,value,cls}) =>
+      `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value ${cls}">${value}</div></div>`
+    ).join('');
+    // Show loaded trades in backtest tab too
+    backtest = { trades, equity: [] };
+  } catch { alert('Could not load backtest detail'); }
+}
+
+async function deleteHistoryBacktest(id) {
+  try {
+    await fetch(`${BASE_URL}/backtests/${id}`, { method: 'DELETE' });
+    loadHistory();
+  } catch { }
+}
+
+/* ── Utilities ── */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(iso) {
+  try { return new Date(iso).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }); }
+  catch { return iso; }
+}
+
+const TICKERS = [
+  "RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","ICICIBANK.NS",
+  "HINDUNILVR.NS","ITC.NS","SBIN.NS","BHARTIARTL.NS","KOTAKBANK.NS",
+  "LT.NS","AXISBANK.NS","BAJFINANCE.NS","ASIANPAINT.NS","WIPRO.NS",
+];
+const LABELS = {
+  "RELIANCE.NS":"Reliance","TCS.NS":"TCS","HDFCBANK.NS":"HDFC Bank","INFY.NS":"Infosys",
+  "ICICIBANK.NS":"ICICI Bank","HINDUNILVR.NS":"HUL","ITC.NS":"ITC","SBIN.NS":"SBI",
+  "BHARTIARTL.NS":"Airtel","KOTAKBANK.NS":"Kotak","LT.NS":"L&T","AXISBANK.NS":"Axis Bank",
+  "BAJFINANCE.NS":"Bajaj Fin","ASIANPAINT.NS":"Asian Paints","WIPRO.NS":"Wipro",
+};
+const SECTOR = {
+  "RELIANCE.NS":"Energy","TCS.NS":"IT","HDFCBANK.NS":"Banking","INFY.NS":"IT",
+  "ICICIBANK.NS":"Banking","HINDUNILVR.NS":"FMCG","ITC.NS":"FMCG","SBIN.NS":"Banking",
+  "BHARTIARTL.NS":"Telecom","KOTAKBANK.NS":"Banking","LT.NS":"Infra",
+  "AXISBANK.NS":"Banking","BAJFINANCE.NS":"Finance","ASIANPAINT.NS":"Paints","WIPRO.NS":"IT",
+};
+
+let PARAMS = { rsiPeriod:14, smaPeriod:200, volMult:1.5, rsiLookback:5, rsiOversold:30, rsiOverbought:70 };
+let allData = {}, allSignals = {}, backtest = null, selectedTicker = "RELIANCE.NS";
+
+const PARAM_DEFS = [
+  { key:"rsiPeriod",    label:"RSI period",              min:5,   max:30,  step:1   },
+  { key:"smaPeriod",    label:"SMA period (trend filter)", min:50, max:250, step:10  },
+  { key:"volMult",      label:"volume multiplier",        min:1.0, max:3.0, step:0.1 },
+  { key:"rsiLookback",  label:"RSI lookback bars",        min:1,   max:15,  step:1   },
+  { key:"rsiOversold",  label:"RSI oversold threshold",   min:15,  max:40,  step:1   },
+  { key:"rsiOverbought",label:"RSI overbought threshold", min:60,  max:85,  step:1   },
+];
+
+/* ── Data generation ── */
+function generateMockPrices(ticker, days = 500) {
+  const seed = ticker.charCodeAt(0) + ticker.charCodeAt(1);
+  let price = 800 + (seed % 800);
+  const data = [];
+  const t = new Date("2023-04-01");
+  for (let i = 0; i < days; i++) {
+    const d = new Date(t);
+    d.setDate(d.getDate() + i);
+    const noise = (Math.sin(i * 0.13 + seed) * 0.012) + (Math.random() - 0.5) * 0.018;
+    price = price * (1 + noise);
+    const vol = Math.floor(1e6 + Math.random() * 4e6);
+    data.push({ date: d, open: price*0.998, high: price*1.01, low: price*0.99, close: price, volume: vol });
+  }
+  return data;
+}
+
+/* ── Indicators ── */
+function computeEMA(data, period) {
+  const k = 2 / (period + 1); let ema = null; const result = [];
+  for (const v of data) {
+    ema = ema === null ? v : v * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
+}
+
+function computeRSI(closes, period = 14) {
+  const rsi = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return rsi;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i-1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let ag = gains/period, al = losses/period;
+  rsi[period] = al === 0 ? 100 : 100 - 100/(1 + ag/al);
+  for (let i = period+1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    ag = (ag*(period-1) + Math.max(d,0)) / period;
+    al = (al*(period-1) + Math.max(-d,0)) / period;
+    rsi[i] = al === 0 ? 100 : 100 - 100/(1 + ag/al);
+  }
+  return rsi;
+}
+
+function computeMACD(closes) {
+  const e12 = computeEMA(closes, 12), e26 = computeEMA(closes, 26);
+  const macd = e12.map((v,i) => v - e26[i]);
+  return { macd, signal: computeEMA(macd, 9) };
+}
+
+function computeSMA(arr, period) {
+  return arr.map((_, i) => {
+    if (i < period - 1) return null;
+    return arr.slice(i - period + 1, i + 1).reduce((a,b) => a+b, 0) / period;
+  });
+}
+
+function generateSignals(priceData, params) {
+  const { rsiPeriod, smaPeriod, volMult, rsiLookback, rsiOversold, rsiOverbought } = params;
+  const closes = priceData.map(d => d.close);
+  const volumes = priceData.map(d => d.volume);
+  const rsi = computeRSI(closes, rsiPeriod);
+  const { macd, signal: macdSig } = computeMACD(closes);
+  const sma = computeSMA(closes, smaPeriod);
+  const volAvg = computeSMA(volumes, 20);
+  return priceData.map((d, i) => {
+    if (i === 0) return { ...d, rsi:rsi[i], macd:macd[i], macdSig:macdSig[i], sma:sma[i], signal:0 };
+    const macdCross = macd[i-1] < macdSig[i-1] && macd[i] >= macdSig[i];
+    let rsiLow = false;
+    for (let k = Math.max(0, i-rsiLookback+1); k <= i; k++) {
+      if (rsi[k] !== null && rsi[k] < rsiOversold) { rsiLow = true; break; }
+    }
+    const uptrend = sma[i] !== null && d.close > sma[i];
+    const volSpike = volAvg[i] !== null && d.volume > volMult * volAvg[i];
+    let sig = 0;
+    if (macdCross && rsiLow && uptrend && volSpike) sig = 1;
+    else if (rsi[i] !== null && rsi[i] > rsiOverbought) sig = -1;
+    return { ...d, rsi:rsi[i], macd:macd[i], macdSig:macdSig[i], sma:sma[i], volAvg:volAvg[i], signal:sig };
+  });
+}
+
+function runBacktest(sigs) {
+  let cash = 100000, positions = {}, trades = [], equity = [];
+  const allTs = [...new Set(Object.values(sigs).flatMap(s => s.map(d => d.date.getTime())))].sort((a,b)=>a-b);
+  const byDate = {};
+  for (const [ticker, sig] of Object.entries(sigs))
+    for (const row of sig) {
+      const t = row.date.getTime();
+      if (!byDate[t]) byDate[t] = {};
+      byDate[t][ticker] = row;
+    }
+  for (const ts of allTs) {
+    const rows = byDate[ts] || {};
+    for (const [ticker, row] of Object.entries(rows)) {
+      const { signal, close } = row;
+      if (!close || close <= 0) continue;
+      let mktVal = cash;
+      for (const [t, pos] of Object.entries(positions)) mktVal += pos.shares * (byDate[ts]?.[t]?.close || pos.entryPrice);
+      if (signal === 1 && !positions[ticker]) {
+        const alloc = 0.1 * mktVal;
+        if (cash >= alloc) {
+          cash -= alloc;
+          positions[ticker] = { shares: alloc*(1-0.001)/close, entryPrice:close, entryDate:new Date(ts), alloc };
+        }
+      } else if (signal === -1 && positions[ticker]) {
+        const pos = positions[ticker];
+        const proceeds = pos.shares * close * (1-0.001);
+        trades.push({ ticker, entryDate:pos.entryDate, exitDate:new Date(ts), entryPrice:pos.entryPrice, exitPrice:close, returnPct:(proceeds-pos.alloc)/pos.alloc*100, note:"" });
+        cash += proceeds;
+        delete positions[ticker];
+      }
+    }
+    let total = cash;
+    for (const [t, pos] of Object.entries(positions)) total += pos.shares * (byDate[ts]?.[t]?.close || pos.entryPrice);
+    equity.push({ date:new Date(ts), value:total });
+  }
+  for (const [ticker, pos] of Object.entries(positions)) {
+    const last = sigs[ticker].at(-1);
+    const proceeds = pos.shares * last.close * (1-0.001);
+    trades.push({ ticker, entryDate:pos.entryDate, exitDate:last.date, entryPrice:pos.entryPrice, exitPrice:last.close, returnPct:(proceeds-pos.alloc)/pos.alloc*100, note:"open" });
+    cash += proceeds;
+  }
+  return { trades, equity };
+}
+
+/* ── Canvas drawing utilities ── */
+function getThemeColor(key) {
+  const style = getComputedStyle(document.documentElement);
+  const map = {
+    text: '--text', text2: '--text2', text3: '--text3', green: '--green', red: '--red',
+    amber: '--amber', blue: '--blue', surface: '--surface', bg: '--bg',
+  };
+  return style.getPropertyValue(map[key] || key).trim();
+}
+
+function drawEquity(canvas, equity) {
+  if (!equity.length) return;
+  const W = canvas.offsetWidth || 800, H = 200;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, W, H);
+  const vals = equity.map(d => d.value);
+  const start = vals[0], min = Math.min(...vals), max = Math.max(...vals);
+  const pad = { top:16, bottom:30, left:58, right:16 };
+  const iW = W - pad.left - pad.right, iH = H - pad.top - pad.bottom;
+  const range = max - min || 1;
+  const toX = i => pad.left + (i / (vals.length-1)) * iW;
+  const toY = v => pad.top + (1 - (v - min) / range) * iH;
+
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(vals[0]));
+  for (let i = 1; i < vals.length; i++) ctx.lineTo(toX(i), toY(vals[i]));
+  ctx.strokeStyle = "#378ADD"; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(vals[0]));
+  for (let i = 1; i < vals.length; i++) ctx.lineTo(toX(i), toY(vals[i]));
+  ctx.lineTo(toX(vals.length-1), H - pad.bottom);
+  ctx.lineTo(toX(0), H - pad.bottom);
+  ctx.fillStyle = "rgba(55,138,221,0.10)"; ctx.fill();
+
+  ctx.beginPath(); ctx.setLineDash([6,4]);
+  ctx.moveTo(pad.left, toY(start)); ctx.lineTo(W - pad.right, toY(start));
+  ctx.strokeStyle = "rgba(136,135,128,0.45)"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.setLineDash([]);
+
+  const col = getThemeColor('text2');
+  ctx.fillStyle = col; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "right";
+  for (let i = 0; i <= 4; i++) {
+    const v = min + (i/4) * range, y = toY(v);
+    ctx.fillText("₹" + Math.round(v/1000) + "k", pad.left - 4, y + 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y);
+    ctx.strokeStyle = "rgba(136,135,128,0.12)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.textAlign = "center";
+  const months = [];
+  equity.forEach((d, i) => { if (d.date.getDate() === 1 || i === 0) months.push({ i, label: d.date.toLocaleDateString("en-IN", { month:"short", year:"2-digit" }) }); });
+  const step = Math.ceil(months.length / 8);
+  months.filter((_,i) => i % step === 0).forEach(({ i, label }) => ctx.fillText(label, toX(i), H - 6));
+}
+
+function drawSignalChart(canvas, signals) {
+  if (!signals.length) return;
+  const W = canvas.offsetWidth || 800, H = 300;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, W, H);
+  const priceH = H * 0.66, rsiH = H * 0.28, gap = H * 0.06;
+  const pad = { top:10, bottom:4, left:58, right:12 };
+  const rsiTop = priceH + gap;
+  const closes = signals.map(d => d.close);
+  const pMin = Math.min(...closes), pMax = Math.max(...closes);
+  const iW = W - pad.left - pad.right;
+  const toX = i => pad.left + (i / (signals.length-1)) * iW;
+  const toPY = v => pad.top + (1 - (v - pMin)/(pMax - pMin || 1)) * (priceH - pad.top - pad.bottom);
+  const toRY = v => rsiTop + pad.top + (1 - v/100) * (rsiH - pad.top - pad.bottom);
+
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toPY(closes[0]));
+  for (let i = 1; i < closes.length; i++) ctx.lineTo(toX(i), toPY(closes[i]));
+  ctx.strokeStyle = getThemeColor('text'); ctx.lineWidth = 1.5; ctx.stroke();
+
+  ctx.beginPath(); ctx.setLineDash([5,3]);
+  let started = false;
+  for (let i = 0; i < signals.length; i++) {
+    if (signals[i].sma === null) continue;
+    const x = toX(i), y = toPY(signals[i].sma);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "#BA7517"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.setLineDash([]);
+
+  for (let i = 0; i < signals.length; i++) {
+    const sig = signals[i].signal;
+    if (sig === 1) {
+      const x = toX(i), y = toPY(closes[i]);
+      ctx.beginPath(); ctx.moveTo(x, y+14); ctx.lineTo(x-7, y+26); ctx.lineTo(x+7, y+26); ctx.closePath();
+      ctx.fillStyle = "#3b6d11"; ctx.fill();
+    } else if (sig === -1) {
+      const x = toX(i), y = toPY(closes[i]);
+      ctx.beginPath(); ctx.moveTo(x, y-14); ctx.lineTo(x-7, y-26); ctx.lineTo(x+7, y-26); ctx.closePath();
+      ctx.fillStyle = "#a32d2d"; ctx.fill();
+    }
+  }
+
+  const col = getThemeColor('text2');
+  ctx.fillStyle = col; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "right";
+  for (let i = 0; i <= 3; i++) {
+    const v = pMin + (i/3)*(pMax-pMin), y = toPY(v);
+    ctx.fillText("₹"+Math.round(v), pad.left-4, y+4);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W-pad.right, y);
+    ctx.strokeStyle = "rgba(136,135,128,0.12)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  const validRsi = signals.filter(d => d.rsi !== null);
+  if (validRsi.length > 1) {
+    ctx.beginPath(); let rs = false;
+    for (let i = 0; i < signals.length; i++) {
+      if (signals[i].rsi === null) continue;
+      const x = toX(i), y = toRY(signals[i].rsi);
+      if (!rs) { ctx.moveTo(x, y); rs = true; } else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "#7f77dd"; ctx.lineWidth = 1.5; ctx.stroke();
+    [30, 70].forEach(level => {
+      const y = toRY(level);
+      ctx.beginPath(); ctx.setLineDash([4,3]);
+      ctx.moveTo(pad.left, y); ctx.lineTo(W-pad.right, y);
+      ctx.strokeStyle = level === 30 ? "rgba(59,109,17,0.5)" : "rgba(163,45,45,0.5)"; ctx.lineWidth=1; ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = level === 30 ? "rgba(59,109,17,0.7)" : "rgba(163,45,45,0.7)";
+      ctx.font = "10px 'IBM Plex Mono', monospace"; ctx.textAlign = "right";
+      ctx.fillText(level, pad.left-4, y+4);
+    });
+    ctx.fillStyle = col; ctx.textAlign = "right"; ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.fillText("RSI", pad.left-4, rsiTop+16);
+  }
+
+  const months = [];
+  signals.forEach((d, i) => { if (d.date.getDate() === 1 || i === 0) months.push({ i, label: d.date.toLocaleDateString("en-IN", { month:"short", year:"2-digit" }) }); });
+  ctx.fillStyle = col; ctx.textAlign = "center"; ctx.font = "10px 'IBM Plex Mono', monospace";
+  const step = Math.ceil(months.length / 8);
+  months.filter((_,i) => i % step === 0).forEach(({ i, label }) => ctx.fillText(label, toX(i), H - 2));
+}
+
+/* ── Compute metrics ── */
+function computeMetrics(bt) {
+  const eq = bt.equity;
+  if (!eq.length) return null;
+  const start = eq[0].value, end = eq.at(-1).value;
+  const ret = ((end - start) / start * 100).toFixed(2);
+  const daily = eq.slice(1).map((d,i) => (d.value - eq[i].value) / eq[i].value);
+  const mean = daily.reduce((a,b) => a+b, 0) / daily.length;
+  const std = Math.sqrt(daily.reduce((a,b) => a + (b-mean)**2, 0) / daily.length) || 1;
+  const sharpe = (mean / std * Math.sqrt(252)).toFixed(2);
+  let peak = start, maxDD = 0;
+  for (const e of eq) { if (e.value > peak) peak = e.value; maxDD = Math.min(maxDD, (e.value-peak)/peak*100); }
+  const wins = bt.trades.filter(t => t.returnPct > 0).length;
+  const winRate = bt.trades.length ? (wins/bt.trades.length*100).toFixed(1) : "0.0";
+  return { ret, sharpe, maxDD: maxDD.toFixed(2), winRate, numTrades: bt.trades.length, start, end, wins };
+}
+
+/* ── Render functions ── */
+function renderDashboard() {
+  if (!backtest) return;
+  const m = computeMetrics(backtest);
+  if (!m) return;
+
+  const grid = document.getElementById('metrics-grid');
+  const items = [
+    { label:"total return", value:`${m.ret > 0 ? '+' : ''}${m.ret}%`, cls: parseFloat(m.ret) > 0 ? 'up' : 'down' },
+    { label:"sharpe ratio", value: m.sharpe, cls: parseFloat(m.sharpe) > 1 ? 'up' : '' },
+    { label:"max drawdown", value:`${m.maxDD}%`, cls:'down' },
+    { label:"win rate", value:`${m.winRate}%`, cls: parseFloat(m.winRate) > 50 ? 'up' : '' },
+    { label:"trades", value: m.numTrades, cls:'' },
+    { label:"final equity", value:`₹${Math.round(m.end).toLocaleString('en-IN')}`, cls:'' },
+  ];
+  grid.innerHTML = items.map(({label,value,cls}) =>
+    `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value ${cls}">${value}</div></div>`
+  ).join('');
+
+  const canvas = document.getElementById('equity-canvas');
+  setTimeout(() => drawEquity(canvas, backtest.equity), 50);
+
+  const latestSigs = TICKERS.map(t => {
+    const sig = allSignals[t];
+    if (!sig || !sig.length) return null;
+    const last = sig.at(-1), prev = sig.at(-2);
+    const change = prev ? (last.close - prev.close)/prev.close*100 : 0;
+    return { ticker:t, label:LABELS[t], close:last.close, change, signal:last.signal, rsi:last.rsi };
+  }).filter(Boolean);
+
+  const buys = latestSigs.filter(s => s.signal === 1);
+  const sells = latestSigs.filter(s => s.signal === -1);
+
+  document.getElementById('buy-title').textContent = `buy signals (${buys.length})`;
+  document.getElementById('sell-title').textContent = `sell signals (${sells.length})`;
+
+  const mkRow = (s, isBuy) => `
+    <div class="signal-row" onclick="goToSignal('${s.ticker}')">
+      <div><div class="signal-row-name">${s.label}</div><div class="signal-row-meta">${SECTOR[s.ticker]} · RSI ${s.rsi ? s.rsi.toFixed(1) : '—'}</div></div>
+      <div class="signal-row-right">
+        <div class="signal-row-price">₹${Math.round(s.close).toLocaleString('en-IN')}</div>
+        <div class="signal-row-chg ${s.change >= 0 ? 'chg-up' : 'chg-dn'}">${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}%</div>
+      </div>
+    </div>`;
+
+  document.getElementById('buy-list').innerHTML = buys.length ? buys.map(s => mkRow(s, true)).join('') : '<span class="no-signals">no signals on latest bar</span>';
+  document.getElementById('sell-list').innerHTML = sells.length ? sells.map(s => mkRow(s, false)).join('') : '<span class="no-signals">no signals on latest bar</span>';
+
+  const ss = document.getElementById('signal-status');
+  ss.textContent = `${buys.length} BUY · ${sells.length} SELL active`;
+  ss.className = 'signal-status' + (buys.length > 0 ? ' has-buys' : '');
+}
+
+function renderSignalsPanel() {
+  const pillsEl = document.getElementById('ticker-pills');
+  pillsEl.innerHTML = TICKERS.map(t => {
+    const sig = allSignals[t];
+    const last = sig?.at(-1);
+    const hasBuy = last?.signal === 1, hasSell = last?.signal === -1;
+    const cls = ['ticker-pill', t === selectedTicker ? 'active' : '', hasBuy ? 'has-buy' : hasSell ? 'has-sell' : ''].join(' ');
+    const arrow = hasBuy ? '<span class="sig-arrow" style="color:#3b6d11">▲</span>' : hasSell ? '<span class="sig-arrow" style="color:#a32d2d">▼</span>' : '';
+    return `<button class="${cls}" onclick="selectTicker('${t}')">${LABELS[t]}${arrow}</button>`;
+  }).join('');
+
+  const sigs = allSignals[selectedTicker] || [];
+  if (!sigs.length) { document.getElementById('signal-detail').innerHTML = '<span style="color:var(--text2);font-size:12px">no data</span>'; return; }
+
+  const last = sigs.at(-1);
+  const buys = sigs.filter(d => d.signal === 1);
+  const sells = sigs.filter(d => d.signal === -1);
+  const sigLabel = last.signal === 1 ? 'BUY' : last.signal === -1 ? 'SELL' : 'HOLD';
+  const sigColor = last.signal === 1 ? 'var(--green)' : last.signal === -1 ? 'var(--red)' : 'var(--text)';
+
+  const stats = [
+    { label:"price", value:`₹${Math.round(last.close).toLocaleString('en-IN')}` },
+    { label:"RSI(14)", value: last.rsi ? last.rsi.toFixed(1) : '—' },
+    { label:"signal", value: sigLabel, color: sigColor },
+    { label:"buy count", value: buys.length },
+    { label:"sell count", value: sells.length },
+    { label:"sector", value: SECTOR[selectedTicker] },
+  ];
+
+  document.getElementById('signal-detail').innerHTML = `
+    <div class="stat-row">${stats.map(s => `<div class="stat-cell"><div class="stat-cell-label">${s.label}</div><div class="stat-cell-value" style="${s.color?'color:'+s.color:''}">${s.value}</div></div>`).join('')}</div>
+    <div class="signal-chart-label">${selectedTicker} — price / SMA / RSI · ▲ buy · ▼ sell</div>
+    <div class="chart-wrap" style="padding:12px"><canvas id="sig-canvas" height="300"></canvas></div>
+  `;
+  setTimeout(() => {
+    const c = document.getElementById('sig-canvas');
+    if (c) drawSignalChart(c, sigs);
+  }, 50);
+}
+
+function renderTradeTable() {
+  if (!backtest) return;
+  const filter = document.getElementById('trade-filter').value;
+  const trades = backtest.trades.filter(t => filter === 'ALL' || t.ticker === filter).slice().reverse();
+  document.getElementById('trade-count').textContent = `${trades.length} trades`;
+  document.getElementById('trade-tbody').innerHTML = trades.map((t, i) => `
+    <tr class="clickable" onclick="goToSignal('${t.ticker}')">
+      <td class="td-muted">${trades.length - i}</td>
+      <td style="font-weight:500">${LABELS[t.ticker]}</td>
+      <td>${t.entryDate.toISOString().slice(0,10)}</td>
+      <td>${t.exitDate.toISOString().slice(0,10)}</td>
+      <td>₹${Math.round(t.entryPrice)}</td>
+      <td>₹${Math.round(t.exitPrice)}</td>
+      <td class="${t.returnPct >= 0 ? 'ret-up' : 'ret-dn'}">${t.returnPct >= 0 ? '+' : ''}${t.returnPct.toFixed(2)}%</td>
+      <td class="td-muted">${t.note || ''}</td>
+    </tr>`).join('');
+}
+
+function renderConfig() {
+  const html = PARAM_DEFS.map(({ key, label, min, max, step }) => `
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-label">${label}</span>
+        <span class="param-val" id="val-${key}">${PARAMS[key]}</span>
+      </div>
+      <input type="range" min="${min}" max="${max}" step="${step}" value="${PARAMS[key]}"
+        oninput="PARAMS['${key}']=parseFloat(this.value);document.getElementById('val-${key}').textContent=this.value;updateLogicBox()">
+      <div class="param-minmax"><span>${min}</span><span>${max}</span></div>
+    </div>`).join('');
+  document.getElementById('param-sliders').innerHTML = html;
+  updateLogicBox();
+}
+
+function updateLogicBox() {
+  const p = PARAMS;
+  document.getElementById('logic-box').innerHTML = `
+    <strong>signal logic</strong><br>
+    BUY: MACD cross↑ AND RSI &lt; ${p.rsiOversold} in last ${p.rsiLookback} bars<br>
+    AND close &gt; ${p.smaPeriod}-SMA AND vol &gt; ${p.volMult}× avg<br><br>
+    SELL: RSI &gt; ${p.rsiOverbought}<br><br>
+    ₹1,00,000 initial · 10% position size · 0.1% tx cost`;
+}
+
+/* ── App logic ── */
+function goToSignal(ticker) {
+  selectedTicker = ticker;
+  switchTab('signals', document.querySelector('.tab:nth-child(2)'));
+}
+
+function selectTicker(ticker) {
+  selectedTicker = ticker;
+  renderSignalsPanel();
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'signals') renderSignalsPanel();
+  if (name === 'backtest') renderTradeTable();
+  if (name === 'config') { renderConfig(); loadSavedConfigs(); }
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'history') loadHistory();
+}
+
+function recompute() {
+  const btn = document.getElementById('rerun-btn');
+  const cbtn = document.getElementById('config-rerun');
+  btn.disabled = true; btn.textContent = 'running…';
+  if (cbtn) { cbtn.disabled = true; cbtn.textContent = 'running…'; }
+  setTimeout(() => {
+    allSignals = Object.fromEntries(TICKERS.map(t => [t, generateSignals(allData[t], PARAMS)]));
+    backtest = runBacktest(allSignals);
+    btn.disabled = false; btn.textContent = '↻ rerun';
+    if (cbtn) { cbtn.disabled = false; cbtn.textContent = '↻ rerun with new params'; }
+    renderDashboard();
+    const active = document.querySelector('.tab.active').textContent.trim();
+    if (active === 'signals') renderSignalsPanel();
+    if (active === 'backtest') renderTradeTable();
+  }, 80);
+}
+
+/* ── Init ── */
+function init() {
+  // Hide backend UI until health check passes
+  document.querySelectorAll('.backend-ui').forEach(el => el.classList.add('backend-hidden'));
+  allData = Object.fromEntries(TICKERS.map(t => [t, generateMockPrices(t)]));
+  const sel = document.getElementById('trade-filter');
+  TICKERS.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = LABELS[t]; sel.appendChild(o); });
+  allSignals = Object.fromEntries(TICKERS.map(t => [t, generateSignals(allData[t], PARAMS)]));
+  backtest = runBacktest(allSignals);
+  renderDashboard();
+  renderConfig();
+  // Check backend (non-blocking)
+  checkBackend();
+  window.addEventListener('resize', () => {
+    if (backtest) {
+      const ec = document.getElementById('equity-canvas');
+      if (ec && ec.offsetWidth) drawEquity(ec, backtest.equity);
+      const sc = document.getElementById('sig-canvas');
+      if (sc && sc.offsetWidth) drawSignalChart(sc, allSignals[selectedTicker] || []);
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
