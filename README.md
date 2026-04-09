@@ -1,1 +1,1 @@
-this requires venv to run, be careful while cloning and run locally and not on cloud
+Be careful while running on github pages as backend might appear offline , to experience backend run locally on system using venv.
