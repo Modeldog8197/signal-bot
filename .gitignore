@@ -1,0 +1,8 @@
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+research.db*
+signal_bot.db-*
+playwright-report/
+test-results/

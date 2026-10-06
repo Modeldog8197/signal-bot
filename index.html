@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Avdhoot Gupta's reproducible signal research workbench: causal daily-bar backtests, cost sensitivity and transparent evaluation."
+    />
+    <title>Signal Bot — Research Workbench</title>
+    <link rel="icon" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#workspace">Skip to experiment</a>
+    <header class="top">
+      <a class="brand" href="#"
+        ><span>SB</span>
+        <div>Signal Bot<small>Research workbench / 02</small></div></a
+      >
+      <nav aria-label="Main">
+        <a href="#workspace">Experiment</a><a href="#evidence">Evidence</a
+        ><a href="#method">Method</a
+        ><a href="https://github.com/Modeldog8197/signal-bot">Source ↗</a>
+      </nav>
+      <span class="author">Avdhoot Gupta</span>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">A question, not a promise of alpha</p>
+          <h1>Do the filters<br />earn their place?</h1>
+          <p class="intro">
+            A daily-bar lab for testing RSI recovery, momentum, trend and
+            volume. Compare the complete rule with simpler alternatives, account
+            for trading friction, and inspect every execution.
+          </p>
+        </div>
+        <aside class="research-note">
+          <p class="eyebrow">Research question 01</p>
+          <p>
+            Does adding trend and volume confirmation improve a pullback
+            strategy on a later evaluation period?
+          </p>
+          <div>
+            <span>Hypothesis</span
+            ><strong
+              >Filters reduce drawdowns,<br />but may miss the upside.</strong
+            >
+          </div>
+          <a href="#evidence">Inspect the evidence ↓</a>
+        </aside>
+      </section>
+      <div id="source-banner" class="source-banner" role="status"></div>
+      <section
+        id="workspace"
+        class="workspace"
+        aria-labelledby="experiment-title"
+      >
+        <aside class="settings">
+          <div class="section-heading">
+            <p class="eyebrow">01 / Design the experiment</p>
+            <h2 id="experiment-title">Configuration</h2>
+          </div>
+          <form id="config-form">
+            <label
+              >Starting capital <span>INR, paper portfolio</span
+              ><input
+                id="capital"
+                type="number"
+                value="100000"
+                min="1000"
+                max="100000000"
+                required
+            /></label>
+            <div class="pair">
+              <label
+                >Fee / side <span>basis points</span
+                ><input
+                  id="fee"
+                  type="number"
+                  value="10"
+                  min="0"
+                  max="100"
+                  step="1"
+                  required /></label
+              ><label
+                >Slippage / side <span>basis points</span
+                ><input
+                  id="slip"
+                  type="number"
+                  value="5"
+                  min="0"
+                  max="100"
+                  step="1"
+                  required
+              /></label>
+            </div>
+            <label
+              >Rule selection<select id="selection">
+                <option value="fixed">Fixed, declared rule</option>
+                <option value="development">Select on development data</option>
+              </select></label
+            >
+            <div class="pair">
+              <label
+                >RSI recovery<input
+                  id="entry"
+                  type="number"
+                  value="40"
+                  min="20"
+                  max="60"
+                  required /></label
+              ><label
+                >Trend lookback<select id="trend">
+                  <option value="100">100 sessions</option>
+                  <option value="200">200 sessions</option>
+                </select></label
+              >
+            </div>
+            <p class="help">
+              Development selection compares four predeclared RSI / trend pairs.
+              The later period is never used to choose a pair.
+            </p>
+            <label class="check"
+              ><input id="use-trend" type="checkbox" checked /> Require close
+              above trend</label
+            ><label class="check"
+              ><input id="use-volume" type="checkbox" checked /> Require volume
+              confirmation</label
+            >
+            <label
+              >Volume / prior 20-session mean<input
+                id="volume-factor"
+                type="number"
+                value="1.1"
+                min="0.5"
+                max="3"
+                step="0.1"
+                required
+            /></label>
+            <label
+              >Maximum holding period <span>sessions; next-open exit</span
+              ><input
+                id="holding"
+                type="number"
+                value="25"
+                min="5"
+                max="120"
+                required
+            /></label>
+            <button class="primary" id="run" type="submit">
+              Run experiment <span>↗</span>
+            </button>
+            <p id="run-status" class="help" role="status">
+              Preparing research engine…
+            </p>
+          </form>
+          <details class="import-panel">
+            <summary>Use your own daily bars</summary>
+            <p class="help">
+              Upload 400–10,000 aligned sessions per symbol, up to 12 symbols.
+              Prices must consistently account for splits and dividends; this
+              tool cannot verify that adjustment.
+            </p>
+            <label
+              >Source / adjustment notes<input
+                id="data-source"
+                placeholder="Provider, date, adjustment method"
+                maxlength="200" /></label
+            ><label class="check"
+              ><input id="adjusted" type="checkbox" /> I checked the OHLC
+              adjustment basis</label
+            ><label
+              >OHLCV CSV<input
+                id="csv-file"
+                type="file"
+                accept=".csv,text/csv" /></label
+            ><button id="sample-csv" class="secondary" type="button">
+              Download example CSV
+            </button>
+          </details>
+          <details class="import-panel">
+            <summary>Reproduce the synthetic fixture</summary>
+            <label
+              >Fixture seed<input
+                id="demo-seed"
+                type="number"
+                value="8197"
+                min="0"
+                max="4294967295" /></label
+            ><button id="reset-demo" class="secondary" type="button">
+              Load synthetic fixture
+            </button>
+            <p class="help">
+              Three fictional assets. Seeded regimes and weekday sessions; no
+              real exchange calendar.
+            </p>
+          </details>
+          <p id="error" class="error" role="alert" hidden></p>
+        </aside>
+        <div class="results">
+          <div class="result-heading">
+            <div>
+              <p class="eyebrow">02 / Later-period evaluation</p>
+              <h2>Results under friction</h2>
+              <p id="window" class="muted"></p>
+            </div>
+            <span id="mode" class="badge">SYNTHETIC</span>
+          </div>
+          <div id="stats" class="stats" aria-live="polite"></div>
+          <div class="chart-card">
+            <div class="chart-top">
+              <div>
+                <h3>Portfolio equity</h3>
+                <p id="equity-caption"></p>
+              </div>
+              <div class="legend">
+                <span class="strategy">Rule</span
+                ><span class="benchmark">Buy & hold</span
+                ><span class="cash">Cash</span>
+              </div>
+            </div>
+            <div id="equity-chart" class="chart"></div>
+            <p class="chart-foot">
+              Both portfolios start at the evaluation-period open with identical
+              costs. Open positions remain marked to the final close.
+            </p>
+          </div>
+          <div id="finding" class="finding"></div>
+          <div class="export-bar">
+            <span>Reproduce, audit, compare.</span
+            ><button id="export-json" class="secondary" disabled>
+              Report JSON</button
+            ><button id="export-ledger" class="secondary" disabled>
+              Execution CSV</button
+            ><button id="export-equity" class="secondary" disabled>
+              Equity CSV</button
+            ><button id="export-data" class="secondary" disabled>
+              Dataset CSV
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="evidence" class="evidence">
+        <div class="section-heading">
+          <p class="eyebrow">03 / Challenge the result</p>
+          <h2>What changes when a filter disappears?</h2>
+          <p class="muted">
+            Ablations use the same later period and declared costs. These
+            comparisons diagnose the rule; they do not select a winner for the
+            reported experiment.
+          </p>
+        </div>
+        <div class="evidence-grid">
+          <article class="panel">
+            <h3>Filter ablations</h3>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rule</th>
+                    <th>Net return</th>
+                    <th>Drawdown</th>
+                    <th>Closed trades</th>
+                  </tr>
+                </thead>
+                <tbody id="ablation-rows"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>Cost sensitivity</h3>
+            <p class="help">Fee and slippage vary together on each side.</p>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Each component</th>
+                    <th>Net return</th>
+                    <th>Fees + slip</th>
+                  </tr>
+                </thead>
+                <tbody id="cost-rows"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <article class="panel audit">
+          <div class="panel-heading">
+            <div>
+              <h3>Execution ledger</h3>
+              <p class="help">
+                Every rule order uses an earlier signal date. Prices include
+                directional slippage; fees are listed separately.
+              </p>
+            </div>
+            <span id="ledger-count" class="badge"></span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Signal date</th>
+                  <th>Fill date</th>
+                  <th>Asset</th>
+                  <th>Side</th>
+                  <th>Shares</th>
+                  <th>Open → fill</th>
+                  <th>Fee</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="ledger-rows"></tbody>
+            </table>
+          </div>
+          <p id="ledger-note" class="help"></p>
+          <details>
+            <summary>Open positions & closed-trade outcomes</summary>
+            <p id="open-positions" class="help"></p>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>Sessions held</th>
+                    <th>Net P&L</th>
+                  </tr>
+                </thead>
+                <tbody id="trade-rows"></tbody>
+              </table>
+            </div>
+          </details>
+        </article>
+        <article class="panel">
+          <h3>Development selection audit</h3>
+          <p id="development-copy" class="help"></p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>RSI recovery</th>
+                  <th>Trend sessions</th>
+                  <th>Validation return</th>
+                  <th>Closed trades</th>
+                  <th>Selected rule</th>
+                </tr>
+              </thead>
+              <tbody id="candidate-rows"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+      <section id="method" class="method">
+        <div class="section-heading">
+          <p class="eyebrow">04 / Make the work inspectable</p>
+          <h2>From signal to evidence.</h2>
+        </div>
+        <div class="method-grid">
+          <article>
+            <span>01</span>
+            <h3>Causal features</h3>
+            <p>
+              Wilder RSI (14), MACD (12/26/9), a simple trend average and the
+              preceding 20-session volume mean. A recovery above the declared
+              RSI threshold follows an oversold reading in the previous ten
+              sessions. MACD histogram must be positive.
+            </p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Explicit execution</h3>
+            <p>
+              Signals use the completed daily bar. Orders fill at the next
+              available open. Whole shares, one position per asset, equal
+              maximum allocation, no leverage. RSI ≥ 70, a trend break or the
+              holding limit triggers a next-open exit.
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Chronological evaluation</h3>
+            <p>
+              The first 75% of sessions are development data; its final 30% form
+              the selection window. The last 25% form the later evaluation
+              period. Indicators may use earlier bars for warmup; portfolio cash
+              resets at each window.
+            </p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Known limitations</h3>
+            <p>
+              Only supplied assets are tested. No survivorship correction,
+              market impact, taxes or liquidity limits. Corporate-action
+              adjustment depends on the data provider. Repeated inspection makes
+              later-period results exploratory; these outputs establish neither
+              significance nor a trading edge.
+            </p>
+          </article>
+        </div>
+        <div class="provenance panel">
+          <h3>Experiment provenance</h3>
+          <dl id="provenance"></dl>
+        </div>
+      </section>
+      <section class="case-study">
+        <p class="eyebrow">A portfolio project with a falsifiable question</p>
+        <h2>The interesting result may be<br />a rule that fails.</h2>
+        <p>
+          Built by Avdhoot Gupta to study the gap between attractive indicators
+          and defensible evidence. The source includes deterministic fixtures,
+          accounting checks, future-data tests, CSV validation, and browser
+          tests. Negative results and missing data remain visible.
+        </p>
+        <a class="source-link" href="https://github.com/Modeldog8197/signal-bot"
+          >Read the implementation & tests ↗</a
+        >
+      </section>
+    </main>
+    <footer>
+      <span>Avdhoot Gupta / Signal Bot</span
+      ><span>Daily-bar research · No order routing</span
+      ><a href="#">Back to top ↑</a>
+    </footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
